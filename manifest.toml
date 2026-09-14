@@ -1,0 +1,97 @@
+#:schema https://raw.githubusercontent.com/YunoHost/apps/main/schemas/manifest.v2.schema.json
+
+packaging_format = 2
+
+id = "openlmnp"
+name = "OpenLMNP"
+description.en = "Accounting and tax filing for French furnished rentals (LMNP)"
+description.fr = "Comptabilité et déclaration fiscale du loueur en meublé (LMNP)"
+
+version = "1.6.6~ynh1"
+
+maintainers = ["manganate006"]
+
+[upstream]
+license = "AGPL-3.0-or-later"
+website = "https://openlmnp.fr"
+demo = "https://app.openlmnp.fr"
+admindoc = "https://github.com/manganate006/openlmnp/blob/main/docs/INSTALLATION.md"
+code = "https://github.com/manganate006/openlmnp"
+
+[integration]
+yunohost = ">= 12.1.38"
+helpers_version = "2.1"
+architectures = "all"
+multi_instance = true
+
+# L'application a son propre écran de connexion et sa propre table de comptes : elle ne
+# lit pas l'annuaire LDAP de YunoHost et ne connecte personne automatiquement.
+ldap = false
+sso = false
+
+# Le gros du disque, ce sont les dépendances PHP (vendor/) et les justificatifs déposés.
+disk = "500M"
+# La compilation des assets (Vite) est le pic de mémoire de l'installation.
+ram.build = "1G"
+ram.runtime = "150M"
+
+[install]
+    [install.domain]
+    type = "domain"
+
+    [install.path]
+    type = "path"
+    default = "/openlmnp"
+
+    [install.init_main_permission]
+    help.en = "OpenLMNP has its own login screen. Keep 'visitors' unless you also want the YunoHost portal to gate the app — in that case you will log in twice."
+    help.fr = "OpenLMNP a son propre écran de connexion. Laissez « visiteurs » sauf si vous voulez que le portail YunoHost filtre aussi l'accès — vous vous connecterez alors deux fois."
+    type = "group"
+    default = "visitors"
+
+    [install.admin]
+    type = "user"
+
+    [install.password]
+    help.en = "The account is created during the installation, using the e-mail address of the YunoHost user chosen above. Public sign-up stays closed."
+    help.fr = "Le compte est créé pendant l'installation, avec l'adresse e-mail de l'utilisateur YunoHost choisi ci-dessus. L'inscription publique reste fermée."
+    type = "password"
+
+[resources]
+
+    [resources.sources]
+
+        [resources.sources.main]
+        url = "https://github.com/manganate006/openlmnp/releases/download/v1.6.6/openlmnp-1.6.6.tar.gz"
+        sha256 = "6de9ae60dd87a6e308660d25c2fd58796201f2cfab910ce26d79fb4e45e1b94c"
+        autoupdate.strategy = "latest_github_release"
+        autoupdate.asset = "^openlmnp-.*\\.tar\\.gz$"
+
+    [resources.system_user]
+
+    [resources.install_dir]
+
+    [resources.permissions]
+    main.url = "/"
+
+    [resources.apt]
+    packages = [
+        "sqlite3",
+        "php8.4-fpm",
+        "php8.4-cli",
+        "php8.4-bcmath",
+        "php8.4-curl",
+        "php8.4-gd",
+        "php8.4-intl",
+        "php8.4-mbstring",
+        "php8.4-opcache",
+        "php8.4-sqlite3",
+        "php8.4-xml",
+        "php8.4-zip",
+    ]
+
+    [resources.composer]
+    version = "2.8.12"
+
+    [resources.nodejs]
+    version = "22"

@@ -1,0 +1,90 @@
+#!/bin/bash
+
+source /usr/share/yunohost/helpers
+
+admin_mail=$(ynh_user_get_info --username="$admin" --key=mail)
+app_url="https://${domain}${path%/}"
+random_key=$(ynh_string_random --length=32)
+
+ynh_app_setting_set --key=random_key --value="$random_key"
+
+#=================================================
+# DOWNLOAD, CHECK AND UNPACK SOURCE
+#=================================================
+ynh_script_progression "Setting up source files..."
+
+ynh_setup_source --dest_dir="$install_dir"
+
+#=================================================
+# ADD A CONFIGURATION
+#=================================================
+ynh_script_progression "Adding $app's configuration..."
+
+ynh_config_add --template=".env" --destination="$install_dir/.env"
+chmod 600 "$install_dir/.env"
+chown "$app:$app" "$install_dir/.env"
+
+#=================================================
+# SYSTEM CONFIGURATION
+#=================================================
+ynh_script_progression "Adding system configurations related to $app..."
+
+ynh_config_add_phpfpm
+
+ynh_config_add_nginx
+
+ynh_config_add --template="cron" --destination="/etc/cron.d/$app"
+
+#=================================================
+# INSTALL DEPENDENCIES AND BUILD ASSETS
+#=================================================
+ynh_script_progression "Installing $app's dependencies..."
+
+ynh_composer_exec install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+pushd "$install_dir"
+    ynh_exec_as_app npm ci --no-audit --no-fund
+    ynh_exec_as_app npm run build
+popd
+
+# Only public/build is needed at runtime.
+ynh_safe_rm "$install_dir/node_modules"
+
+#=================================================
+# INITIALIZE THE DATABASE
+#=================================================
+ynh_script_progression "Initializing $app's database..."
+
+mkdir -p "$install_dir/database"
+touch "$install_dir/database/database.sqlite"
+chown -R "$app:$app" "$install_dir/database"
+chmod 750 "$install_dir/database"
+chmod 640 "$install_dir/database/database.sqlite"
+
+pushd "$install_dir"
+    ynh_exec_as_app "php$php_version" artisan migrate --force
+    ynh_exec_as_app "php$php_version" artisan db:seed --force
+    ynh_exec_as_app "php$php_version" artisan storage:link
+    ynh_exec_as_app "php$php_version" artisan view:cache
+popd
+
+#=================================================
+# CREATE THE ADMINISTRATOR ACCOUNT
+#=================================================
+ynh_script_progression "Creating the administrator account..."
+
+# Base64 keeps the password intact through the shell and PHP quoting.
+password_b64=$(printf '%s' "$password" | base64 --wrap=0)
+
+pushd "$install_dir"
+    ynh_exec_as_app "php$php_version" artisan tinker --execute="\App\Models\User::create(['name' => '$admin', 'email' => '$admin_mail', 'password' => base64_decode('$password_b64'), 'is_admin' => true]);"
+    user_count=$(ynh_exec_as_app "php$php_version" artisan tinker --execute="echo \App\Models\User::query()->count();" 2>/dev/null | tail --lines=1 | tr -d '[:space:]')
+popd
+
+[ "${user_count:-0}" -ge 1 ] || ynh_die "The administrator account could not be created."
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Installation of $app completed"

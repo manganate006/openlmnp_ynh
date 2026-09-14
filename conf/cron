@@ -1,0 +1,2 @@
+# cron job for __APP__
+* * * * * __APP__ cd __INSTALL_DIR__ && /usr/bin/php__PHP_VERSION__ artisan schedule:run >/dev/null 2>&1

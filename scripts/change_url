@@ -1,0 +1,33 @@
+#!/bin/bash
+
+source /usr/share/yunohost/helpers
+
+admin_mail=$(ynh_user_get_info --username="$admin" --key=mail)
+app_url="https://${new_domain}${new_path%/}"
+
+#=================================================
+# MODIFY URL IN NGINX CONF
+#=================================================
+ynh_script_progression "Updating NGINX web server configuration..."
+
+ynh_config_change_url_nginx
+
+#=================================================
+# MODIFY A CONFIG FILE
+#=================================================
+ynh_script_progression "Updating $app's configuration..."
+
+ynh_config_add --template=".env" --destination="$install_dir/.env"
+chmod 600 "$install_dir/.env"
+chown "$app:$app" "$install_dir/.env"
+
+pushd "$install_dir"
+    ynh_exec_as_app "php$php_version" artisan optimize:clear
+    ynh_exec_as_app "php$php_version" artisan view:cache
+popd
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Change of URL completed for $app"
