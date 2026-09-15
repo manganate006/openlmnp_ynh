@@ -7,7 +7,7 @@ name = "OpenLMNP"
 description.en = "Accounting and tax return for furnished rentals taxed in France: depreciation, 2031/2033 forms, FEC export"
 description.fr = "Comptabilité et liasse fiscale du loueur en meublé au régime réel : amortissements, 2031/2033, export FEC"
 
-version = "1.6.5~ynh1"
+version = "1.6.7~ynh1"
 
 maintainers = ["manganate006"]
 
@@ -70,8 +70,8 @@ ram.runtime = "150M"
     [resources.sources]
 
         [resources.sources.main]
-        url = "https://github.com/manganate006/openlmnp/releases/download/v1.6.5/openlmnp-1.6.5.tar.gz"
-        sha256 = "cfa78cd8bb7730139b2ce95de467b82e07c26d89f0b5a227e1159497738273d2"
+        url = "https://github.com/manganate006/openlmnp/releases/download/v1.6.7/openlmnp-1.6.7.tar.gz"
+        sha256 = "417f0994d0e5a780ef543fae7f75c77c13c77b9a9eb000e86bbe7e6065eaaf8a"
         autoupdate.strategy = "latest_github_release"
         autoupdate.asset = "^openlmnp-.*\\.tar\\.gz$"
 

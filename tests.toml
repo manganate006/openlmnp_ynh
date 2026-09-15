@@ -24,5 +24,5 @@ test_format = 1.0
     # Upgrading from the previous packaged release exercises the one thing a single commit
     # cannot: that a new Laravel migration actually runs.
     # Filled in once the commit pinning 1.6.5 exists in this repository's history.
-    # [default.test_upgrade_from.COMMIT_PINNING_1_6_5]
-    # name = "Upgrade from 1.6.5"
+    [default.test_upgrade_from.0e497cb4f2c8a3fc35c5b7f857b4c82585093287]
+    name = "Upgrade from 1.6.5"
