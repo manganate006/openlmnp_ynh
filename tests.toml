@@ -1,3 +1,28 @@
+#:schema https://raw.githubusercontent.com/YunoHost/apps/main/schemas/tests.v1.schema.json
+
 test_format = 1.0
 
 [default]
+
+    # Test containers must not report themselves as real installations: the default for a
+    # boolean in the test runner is "enabled", which would inflate the install counter.
+    [default.args]
+    telemetry = 0
+
+    [default.curl_tests]
+
+        # The app has its own login screen, so the SSO must not be in the way.
+        # auto_test_assets also fetches what the page references: that is what catches a
+        # 403 on public/build/, which the page itself would not reveal since PHP is served
+        # by FPM running as the app user while NGINX reads the assets from disk.
+        [default.curl_tests.login]
+        path = "/login"
+        logged_on_sso = false
+        expect_return_code = 200
+        auto_test_assets = true
+
+    # Upgrading from the previous packaged release exercises the one thing a single commit
+    # cannot: that a new Laravel migration actually runs.
+    # Filled in once the commit pinning 1.6.5 exists in this repository's history.
+    # [default.test_upgrade_from.COMMIT_PINNING_1_6_5]
+    # name = "Upgrade from 1.6.5"

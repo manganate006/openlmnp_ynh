@@ -1,14 +1,30 @@
 #!/bin/bash
 
+source ../settings/scripts/_common.sh
 source /usr/share/yunohost/helpers
 
 ynh_print_info "Declaring files to be backed up..."
 
 #=================================================
+# BACKUP A CONSISTENT COPY OF THE DATABASE
+#=================================================
+
+# ynh_backup only *declares* paths; the core copies them one by one afterwards, so the
+# database file and its write-ahead log would be captured at two different instants, with
+# the application still serving requests in between. VACUUM INTO writes a snapshot that is
+# consistent by construction. Run as the app user so that root never opens the live
+# database and never leaves a root-owned -shm behind.
+ynh_exec_as_app sqlite3 "$install_dir/database/database.sqlite" \
+    "VACUUM INTO '$install_dir/database/.backup-snapshot.sqlite'"
+
+# Files created here land in the archive, next to the declared ones.
+mv "$install_dir/database/.backup-snapshot.sqlite" ./db.sqlite
+
+#=================================================
 # BACKUP THE APP MAIN DIR
 #=================================================
 
-# The SQLite database and the uploaded receipts live in there, no dump needed.
+# The uploaded receipts and .env live in there.
 ynh_backup "$install_dir"
 
 #=================================================

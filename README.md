@@ -8,7 +8,7 @@ It shall NOT be edited by hand.
   OpenLMNP, packaged for YunoHost
 </h1>
 
-Accounting and tax filing for French furnished rentals (LMNP)
+Accounting and tax return for furnished rentals taxed in France: depreciation, 2031/2033 forms, FEC export
 
 [![🌐 Official app website](https://img.shields.io/badge/Official_app_website-darkgreen?style=for-the-badge)](https://openlmnp.fr)
 [![App Demo](https://img.shields.io/badge/App_Demo-blue?style=for-the-badge)](https://app.openlmnp.fr)
@@ -22,6 +22,8 @@ Accounting and tax filing for French furnished rentals (LMNP)
 
 ## Screenshots
 ![Screenshot of OpenLMNP](./doc/screenshots/dashboard.png)
+![Screenshot of OpenLMNP](./doc/screenshots/simulateur.png)
+![Screenshot of OpenLMNP](./doc/screenshots/teledeclaration.png)
 
 ## 📦 Developer info
 

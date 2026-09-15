@@ -1,5 +1,6 @@
 #!/bin/bash
 
+source ../settings/scripts/_common.sh
 source /usr/share/yunohost/helpers
 
 #=================================================
@@ -9,9 +10,34 @@ ynh_script_progression "Restoring the app main directory..."
 
 ynh_restore "$install_dir"
 
-chown -R "$app:$app" "$install_dir"
+# NGINX serves public/build/ directly and has to be able to read it. Restoring with
+# app:app instead would answer 403 on every asset while the pages themselves still work,
+# which is exactly the kind of breakage nobody notices until a user complains.
+chown -R "$app:www-data" "$install_dir"
 chmod 600 "$install_dir/.env"
+
+#=================================================
+# RESTORE THE DATABASE
+#=================================================
+ynh_script_progression "Restoring $app's database..."
+
+# The consistent snapshot taken at backup time replaces the file-level copy.
+cp -f ./db.sqlite "$install_dir/database/database.sqlite"
+# Any write-ahead log from the archive belongs to the copy we just overwrote.
+rm -f "$install_dir/database/database.sqlite-wal" "$install_dir/database/database.sqlite-shm"
+
+chown -R "$app:$app" "$install_dir/database"
+chmod 750 "$install_dir/database"
 chmod 640 "$install_dir/database/database.sqlite"
+
+# public/storage is an absolute symlink and bootstrap/cache holds absolute paths: both point
+# at the previous install_dir when the archive is restored elsewhere. --force replaces the
+# link that came out of the archive instead of refusing because it already exists.
+# (Laravel's --relative is not an option here: it requires symfony/filesystem, which is not
+# part of the application's production dependencies.)
+artisan storage:link --force
+artisan optimize:clear
+artisan view:cache
 
 #=================================================
 # RESTORE SYSTEM CONFIGURATIONS

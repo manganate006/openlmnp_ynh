@@ -4,14 +4,19 @@ selected and the password you chose. Public sign-up is closed (`ALLOW_REGISTRATI
 
 A few things worth knowing:
 
-- **E-mails are not sent by default.** `MAIL_MAILER=log` writes them to
-  `__INSTALL_DIR__/storage/logs/`, so the "forgot password" link does nothing useful yet.
-  Either fill in the `MAIL_*` settings in `.env`, or reset a password from the server:
-  `cd __INSTALL_DIR__ && sudo -u __APP__ php artisan openlmnp:reset-password you@example.com`
+- **E-mails go through this server's own mail system**, so the "forgot password" link works
+  out of the box. To relay through an external provider instead, set `MAIL_MAILER=smtp` and
+  the `MAIL_*` settings in `.env`. You can also reset a password from the server:
+  `sudo -u __APP__ php__PHP_VERSION__ __INSTALL_DIR__/artisan openlmnp:reset-password you@example.com`
 - **Your data lives in `__INSTALL_DIR__`**: the accounting itself in
   `database/database.sqlite`, the uploaded receipts in `storage/app/`. Both are included in
-  YunoHost backups, and neither is touched by upgrades.
-- **The application counts installations**, once a day, with a random identifier and the
-  version number — nothing else. Set `TELEMETRY_ENABLED=false` in `.env` to stop every
-  outbound request.
-- **After editing `.env`**, run `cd __INSTALL_DIR__ && sudo -u __APP__ php artisan optimize:clear`.
+  YunoHost backups, and neither is touched by upgrades — nor is `.env`, so any setting you
+  change there is kept.
+- **Installation counting** is whatever you answered at install time
+  (`TELEMETRY_ENABLED` in `.env`): once a day, a random identifier and the version number,
+  nothing else. `false` stops every outbound request.
+- **Updates go through YunoHost**, from the admin interface or with
+  `yunohost app upgrade __APP__`. The application's own in-place updater is disabled on
+  purpose: it would overwrite files that YunoHost manages.
+- **After editing `.env`**, run
+  `sudo -u __APP__ php__PHP_VERSION__ __INSTALL_DIR__/artisan optimize:clear`.

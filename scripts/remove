@@ -1,5 +1,6 @@
 #!/bin/bash
 
+source _common.sh
 source /usr/share/yunohost/helpers
 
 #=================================================
@@ -7,11 +8,13 @@ source /usr/share/yunohost/helpers
 #=================================================
 ynh_script_progression "Removing system configurations related to $app..."
 
+# The scheduler first: it fires every minute and has no reason to start a run while the
+# web server configuration is being torn down.
+ynh_safe_rm "/etc/cron.d/$app"
+
 ynh_config_remove_nginx
 
 ynh_config_remove_phpfpm
-
-ynh_safe_rm "/etc/cron.d/$app"
 
 #=================================================
 # END OF SCRIPT

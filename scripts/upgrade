@@ -1,26 +1,41 @@
 #!/bin/bash
 
+source _common.sh
 source /usr/share/yunohost/helpers
 
-admin_mail=$(ynh_user_get_info --username="$admin" --key=mail)
-app_url="https://${domain}${path%/}"
+#=================================================
+# ENSURE DOWNWARD COMPATIBILITY
+#=================================================
+ynh_script_progression "Ensuring downward compatibility..."
+
+ynh_app_setting_set_default --key=php_upload_max_filesize --value=50M
+ynh_app_setting_set_default --key=php_post_max_size --value=50M
+
+# Older installs stored Laravel's application key in the app settings; .env is preserved
+# across upgrades, so the key no longer needs to live anywhere else.
+ynh_app_setting_delete --key=random_key
 
 #=================================================
 # DOWNLOAD, CHECK AND UNPACK SOURCE
 #=================================================
 ynh_script_progression "Upgrading source files..."
 
-# .env holds the app key, storage/ the uploaded receipts, database/ the accounting itself.
-ynh_setup_source --dest_dir="$install_dir" --full_replace --keep=".env storage database"
+# Stop the scheduler for the duration of the upgrade: between the source replacement and the
+# end of `composer install` there is no vendor/autoload.php, and cron fires every minute.
+ynh_safe_rm "/etc/cron.d/$app"
 
-#=================================================
-# UPDATE A CONFIG FILE
-#=================================================
-ynh_script_progression "Updating $app's configuration..."
+# Fold the write-ahead log back into the database file before it is moved around.
+ynh_exec_as_app sqlite3 "$install_dir/database/database.sqlite" "PRAGMA wal_checkpoint(TRUNCATE);"
 
-ynh_config_add --template=".env" --destination="$install_dir/.env"
-chmod 600 "$install_dir/.env"
-chown "$app:$app" "$install_dir/.env"
+# .env holds the application key and the admin's settings, storage/ the uploaded receipts,
+# and database.sqlite the accounting itself.
+# Only the database *file* is kept, never the whole database/ directory: that directory also
+# holds database/migrations/, and preserving it would silently restore the previous version's
+# migrations, leaving the schema behind the code with no error reported.
+ynh_setup_source --dest_dir="$install_dir" --full_replace \
+    --keep=".env storage database/database.sqlite database/database.sqlite-wal database/database.sqlite-shm"
+
+chown -R "$app:www-data" "$install_dir"
 
 #=================================================
 # REAPPLY SYSTEM CONFIGURATIONS
@@ -31,14 +46,17 @@ ynh_config_add_phpfpm
 
 ynh_config_add_nginx
 
-ynh_config_add --template="cron" --destination="/etc/cron.d/$app"
-
 #=================================================
 # INSTALL DEPENDENCIES AND BUILD ASSETS
 #=================================================
 ynh_script_progression "Upgrading $app's dependencies..."
 
+# See the install script for why --no-scripts must not be added here.
 ynh_composer_exec install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+# Before Vite: app.css scans storage/framework/views, which still holds the previous
+# version's compiled templates at this point.
+artisan optimize:clear
 
 pushd "$install_dir"
     ynh_exec_as_app npm ci --no-audit --no-fund
@@ -47,17 +65,25 @@ popd
 
 ynh_safe_rm "$install_dir/node_modules"
 
+chown -R "$app:www-data" "$install_dir"
+chmod 600 "$install_dir/.env"
+
 #=================================================
 # MIGRATE THE DATABASE
 #=================================================
 ynh_script_progression "Migrating $app's database..."
 
-pushd "$install_dir"
-    ynh_exec_as_app "php$php_version" artisan migrate --force
-    ynh_exec_as_app "php$php_version" artisan storage:link
-    ynh_exec_as_app "php$php_version" artisan optimize:clear
-    ynh_exec_as_app "php$php_version" artisan view:cache
-popd
+artisan migrate --force
+# --full_replace wiped public/storage, which is not in the release tarball.
+artisan storage:link
+artisan view:cache
+
+#=================================================
+# SET UP THE CRON JOB
+#=================================================
+ynh_script_progression "Setting up the scheduler..."
+
+ynh_config_add --template="cron" --destination="/etc/cron.d/$app"
 
 #=================================================
 # END OF SCRIPT

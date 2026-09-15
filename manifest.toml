@@ -4,10 +4,10 @@ packaging_format = 2
 
 id = "openlmnp"
 name = "OpenLMNP"
-description.en = "Accounting and tax filing for French furnished rentals (LMNP)"
-description.fr = "Comptabilité et déclaration fiscale du loueur en meublé (LMNP)"
+description.en = "Accounting and tax return for furnished rentals taxed in France: depreciation, 2031/2033 forms, FEC export"
+description.fr = "Comptabilité et liasse fiscale du loueur en meublé au régime réel : amortissements, 2031/2033, export FEC"
 
-version = "1.6.6~ynh1"
+version = "1.6.5~ynh1"
 
 maintainers = ["manganate006"]
 
@@ -57,19 +57,31 @@ ram.runtime = "150M"
     help.fr = "Le compte est créé pendant l'installation, avec l'adresse e-mail de l'utilisateur YunoHost choisi ci-dessus. L'inscription publique reste fermée."
     type = "password"
 
+    [install.telemetry]
+    ask.en = "Report this installation to the developer?"
+    ask.fr = "Signaler cette installation au développeur ?"
+    help.en = "Once a day, a random identifier and the version number, so that the project knows how many instances exist. No accounting, personal or tax data. Can be changed later in .env."
+    help.fr = "Une fois par jour, un identifiant aléatoire et le numéro de version, pour que le projet sache combien d'instances existent. Aucune donnée comptable, personnelle ou fiscale. Modifiable ensuite dans .env."
+    type = "boolean"
+    default = false
+
 [resources]
 
     [resources.sources]
 
         [resources.sources.main]
-        url = "https://github.com/manganate006/openlmnp/releases/download/v1.6.6/openlmnp-1.6.6.tar.gz"
-        sha256 = "6de9ae60dd87a6e308660d25c2fd58796201f2cfab910ce26d79fb4e45e1b94c"
+        url = "https://github.com/manganate006/openlmnp/releases/download/v1.6.5/openlmnp-1.6.5.tar.gz"
+        sha256 = "cfa78cd8bb7730139b2ce95de467b82e07c26d89f0b5a227e1159497738273d2"
         autoupdate.strategy = "latest_github_release"
         autoupdate.asset = "^openlmnp-.*\\.tar\\.gz$"
 
     [resources.system_user]
+    # Password reset links are sent through the server's own postfix.
+    allow_email = true
 
     [resources.install_dir]
+    # NGINX serves public/ directly through an alias and has to be able to read it.
+    group = "www-data:r-x"
 
     [resources.permissions]
     main.url = "/"

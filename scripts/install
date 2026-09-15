@@ -1,12 +1,19 @@
 #!/bin/bash
 
+source _common.sh
 source /usr/share/yunohost/helpers
 
 admin_mail=$(ynh_user_get_info --username="$admin" --key=mail)
 app_url="https://${domain}${path%/}"
+
+# Laravel's application key. Kept out of the app settings on purpose: .env is preserved
+# across upgrades, so the key is never needed again after this script.
 random_key=$(ynh_string_random --length=32)
 
-ynh_app_setting_set --key=random_key --value="$random_key"
+# Receipts are scanned invoices and photos; the Debian default of 2M is too low.
+# These settings are read by ynh_config_add_phpfpm below.
+ynh_app_setting_set --key=php_upload_max_filesize --value=50M
+ynh_app_setting_set --key=php_post_max_size --value=50M
 
 #=================================================
 # DOWNLOAD, CHECK AND UNPACK SOURCE
@@ -14,6 +21,8 @@ ynh_app_setting_set --key=random_key --value="$random_key"
 ynh_script_progression "Setting up source files..."
 
 ynh_setup_source --dest_dir="$install_dir"
+
+chown -R "$app:www-data" "$install_dir"
 
 #=================================================
 # ADD A CONFIGURATION
@@ -33,15 +42,18 @@ ynh_config_add_phpfpm
 
 ynh_config_add_nginx
 
-ynh_config_add --template="cron" --destination="/etc/cron.d/$app"
-
 #=================================================
 # INSTALL DEPENDENCIES AND BUILD ASSETS
 #=================================================
 ynh_script_progression "Installing $app's dependencies..."
 
+# No --no-scripts here: composer's post-autoload-dump hook runs `filament:upgrade`, which is
+# the only thing that produces public/css/filament/ and public/js/filament/. Those are not
+# in the release tarball. Without this step the admin panel loads unstyled, with no error.
 ynh_composer_exec install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
+# Vite must run after composer: resources/css/app.css pulls Tailwind sources from
+# vendor/laravel/framework, and without them the pagination classes are silently dropped.
 pushd "$install_dir"
     ynh_exec_as_app npm ci --no-audit --no-fund
     ynh_exec_as_app npm run build
@@ -49,6 +61,11 @@ popd
 
 # Only public/build is needed at runtime.
 ynh_safe_rm "$install_dir/node_modules"
+
+# composer and npm created their files with the app user's umask; NGINX serves
+# public/build/ directly and needs to traverse and read them.
+chown -R "$app:www-data" "$install_dir"
+chmod 600 "$install_dir/.env"
 
 #=================================================
 # INITIALIZE THE DATABASE
@@ -61,27 +78,40 @@ chown -R "$app:$app" "$install_dir/database"
 chmod 750 "$install_dir/database"
 chmod 640 "$install_dir/database/database.sqlite"
 
-pushd "$install_dir"
-    ynh_exec_as_app "php$php_version" artisan migrate --force
-    ynh_exec_as_app "php$php_version" artisan db:seed --force
-    ynh_exec_as_app "php$php_version" artisan storage:link
-    ynh_exec_as_app "php$php_version" artisan view:cache
-popd
+artisan migrate --force
+artisan db:seed --force
+artisan storage:link
+artisan view:cache
 
 #=================================================
 # CREATE THE ADMINISTRATOR ACCOUNT
 #=================================================
 ynh_script_progression "Creating the administrator account..."
 
-# Base64 keeps the password intact through the shell and PHP quoting.
-password_b64=$(printf '%s' "$password" | base64 --wrap=0)
+# Through a file rather than the command line: arguments are world-readable in `ps`.
+pwfile="$install_dir/.admin_password"
+install -m 600 -o "$app" -g "$app" /dev/null "$pwfile"
+printf '%s' "$password" > "$pwfile"
 
-pushd "$install_dir"
-    ynh_exec_as_app "php$php_version" artisan tinker --execute="\App\Models\User::create(['name' => '$admin', 'email' => '$admin_mail', 'password' => base64_decode('$password_b64'), 'is_admin' => true]);"
-    user_count=$(ynh_exec_as_app "php$php_version" artisan tinker --execute="echo \App\Models\User::query()->count();" 2>/dev/null | tail --lines=1 | tr -d '[:space:]')
-popd
+# No trim(): printf wrote the password with nothing around it, and trimming would corrupt
+# a password that legitimately starts or ends with a space.
+artisan tinker --execute="\App\Models\User::create(['name' => '$admin', 'email' => '$admin_mail', 'password' => file_get_contents('$pwfile'), 'is_admin' => true]);"
 
-[ "${user_count:-0}" -ge 1 ] || ynh_die "The administrator account could not be created."
+ynh_safe_rm "$pwfile"
+
+# Asking the database directly, rather than parsing tinker's output: this checks that
+# *this* account exists, not that some account does.
+user_count=$(sqlite3 "$install_dir/database/database.sqlite" "SELECT count(*) FROM users WHERE email = '$admin_mail';")
+[ "${user_count:-0}" -eq 1 ] || ynh_die "The administrator account could not be created."
+
+#=================================================
+# SET UP THE CRON JOB
+#=================================================
+ynh_script_progression "Setting up the scheduler..."
+
+# Last: the scheduler would otherwise fire every minute during the composer and npm steps,
+# against an application that has neither its dependencies nor its database yet.
+ynh_config_add --template="cron" --destination="/etc/cron.d/$app"
 
 #=================================================
 # END OF SCRIPT
